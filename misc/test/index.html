@@ -1,0 +1,53 @@
+<html>
+<body>
+
+<div style="margin: 10px auto;">
+  <canvas style="border:1px solid blue" id="canvas" width="1700" height="900"></canvas>
+</div>
+
+<img src="formula.jpeg" id="img" style="display:none" />
+
+<script type="text/javascript" src="./monaco.js"></script>
+<script src="./epz.js"></script>
+<script type="text/javascript">
+var canvas = document.getElementById("canvas");
+	ctx = canvas.getContext("2d");
+ctx.strokeStyle = 'green';
+ctx.lineWidth = 4;
+ctx.fillStyle = 'red';
+
+new EasyPZ(document.getElementById("canvas"), function(transform) {
+  drawBoard(transform.scale, transform.translateX, transform.translateY);
+}, { minScale: 0.2, maxScale: 10, bounds: { top: NaN, right: NaN, bottom: NaN, left: NaN } });
+
+function drawBoard(scale, translateX, translateY) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.transform(scale, 0, 0, scale, translateX, translateY);
+
+	var img = document.getElementById("img")
+	ctx.drawImage(img, 0, 0, 4304, 2813);
+
+	monacoBoard.forEach(cell => {
+		ctx.beginPath();
+		ctx.moveTo(cell.box[0][0][0], cell.box[0][0][1]);
+		for(var i = 1; i <= cell.box.length; i++){
+			var j = i % cell.box.length;
+			ctx.lineTo(cell.box[j][0][0], cell.box[j][0][1]);
+		}
+		ctx.stroke();
+
+
+		ctx.beginPath();
+	  ctx.arc(cell.cx, cell.cy, 2,0,2*Math.PI);
+		ctx.fill();
+	});
+
+  ctx.restore();
+}
+
+drawBoard(0.4,0,0);
+</script>
+
+</body>
+</html>
