@@ -1,5 +1,5 @@
 <?php
-namespace NID\Helpers;
+namespace FORD\Helpers;
 
 class DB_Manager extends \APP_DbObject {
 	protected static $table = null;

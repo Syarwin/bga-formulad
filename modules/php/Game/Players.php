@@ -21,7 +21,7 @@ class Players extends \FORD\Helpers\DB_Manager
     // Create players
     self::DB()->delete();
 
-    $gameInfos = Nidavellir::get()->getGameinfos();
+    $gameInfos = FormulaD::get()->getGameinfos();
     $colors = $gameInfos['player_colors'];
     $query = self::DB()->multipleInsert(['player_id', 'player_color', 'player_canal', 'player_name', 'player_avatar', 'player_score']);
     $values = [];

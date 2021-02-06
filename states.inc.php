@@ -30,22 +30,44 @@
      "description" => "",
      "type" => "game",
      "action" => "stStartOfTurn",
-     "transitions" => ['' => ST_BIDS]
+     "transitions" => ['' => ST_CHOOSE_SPEED]
    ],
 
 
-   ST_BIDS => [
-     "name" => "playerBids",
-     'description' => clienttranslate('Waiting for other players to bid'),
-     'descriptionmyturn' => clienttranslate('${you} must bid for the three taverns'),
-     'type' => 'multipleactiveplayer',
-     'args' => 'argPlayerBids',
-     'action' => 'stPlayersBids',
-     'possibleactions' => ['bid'],
+   ST_CHOOSE_SPEED => [
+     "name" => "playerChooseSpeed",
+     'description' => clienttranslate('${actplayer} must choose his speed'),
+     'descriptionmyturn' => clienttranslate('${you} must choose your speed'),
+     'type' => 'activeplayer',
+     'args' => 'argChooseSpeed',
+     'possibleactions' => ['actChooseSpeed'],
      'transitions' => [
-       'done' => ST_NEXT_RESOLUTION,
+       '' => ST_ROLL_SPEED_DICE,
      ]
    ],
+
+   ST_ROLL_SPEED_DICE => [
+     "name" => "rollSpeedDice",
+     "description" => "",
+     "type" => "game",
+     "action" => "stRollSpeedDice",
+     "transitions" => [
+       '' => ST_PLAYER_MOVE,
+     ]
+   ],
+
+   ST_PLAYER_MOVE => [
+     "name" => "playerMove",
+     'description' => clienttranslate('${actlayer} must move ${n} slots'),
+     'descriptionmyturn' => clienttranslate('${you} must move ${n} slots'),
+     'type' => 'activeplayer',
+     'args' => 'argPlayerMove',
+     'possibleactions' => ['actChooseTrajectory'],
+     'transitions' => [
+       '' => ST_END_OF_TURN,
+     ]
+   ],
+
 
 
    // Player end of turn
@@ -55,8 +77,9 @@
      "type" => "game",
      "action" => "stEndOfTurn",
      "transitions" => [
+       'nextPlayer' => ST_CHOOSE_SPEED,
        'nextTurn' => ST_START_OF_TURN,
-       'nextAge' => ST_END_OF_AGE,
+       'endOfGame' => ST_GAME_END,
      ]
    ],
 

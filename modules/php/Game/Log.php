@@ -45,7 +45,7 @@ class Log extends \FORD\Helpers\DB_Manager
   public static function insert($player, $action, $args = [])
   {
     $pId = (is_integer($player) || is_null($player))? $player : $player->getId();
-    $turn = Globals::getCurrentTurn();
+    $turn = Globals::getTurn();
     $actionArgs = json_encode($args);
     self::DB()->insert([
       'turn' => $turn,

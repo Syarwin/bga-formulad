@@ -19,7 +19,7 @@ define([
   "dojo","dojo/_base/declare",
   "ebg/core/gamegui",
   "ebg/counter",
-  g_gamethemeurl + "modules/js/Game/game.js",
+  g_gamethemeurl + "modules/js/game.js",
 ],
 function (dojo, declare) {
   return declare("bgagame.formulad", [
@@ -27,10 +27,7 @@ function (dojo, declare) {
   ], {
 
     constructor(){
-      this._notifications.push(
-        ['nopremium', 10],
-        ['cleanUp', 10]
-      );
+//      this._notifications.push(      );
     },
 
 

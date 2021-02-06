@@ -1,6 +1,7 @@
 <?php
 namespace FORD;
-use Game\Globals;
+use FORD\Game\Globals;
+use FORD\Game\Players;
 
 /*
  * Board: all utility functions concerning the board
@@ -24,6 +25,7 @@ class Board
 
   public function getPlayersOrder()
   {
-    return []; // TODO
+    // TODO
+    return Players::getAll()->getIds();
   }
 }

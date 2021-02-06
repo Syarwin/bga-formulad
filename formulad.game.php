@@ -32,7 +32,7 @@ require_once( APP_GAMEMODULE_PATH.'module/table/table.game.php' );
 
 
 use FORD\Game\Globals;
-use FORD\Game\Statistics;
+use FORD\Game\Stats;
 use FORD\Game\Players;
 use FORD\Board;
 
@@ -64,7 +64,7 @@ class FormulaD extends Table
     Board::setupNewGame($players, $options);
 
     Globals::setupNewGame();
-    Statistics::setupNewGame();
+    Stats::setupNewGame();
 	}
 
   /*
