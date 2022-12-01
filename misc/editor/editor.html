@@ -1,0 +1,228 @@
+<html>
+<head>
+<style type="text/css">
+html, body {
+	margin:0;
+	padding:0;
+	overflow:hidden;
+}
+
+#container {
+	display:flex;
+	width:100vw;
+}
+
+#left-bar {
+	width:10vw;
+	background:grey;
+}
+
+#cell-indicator {
+	display:flex;
+	justify-content:center;
+	align-items:center;
+	height:30px;
+	padding:4px 8px;
+	border-bottom:1px solid black;
+}
+
+#main-frame {
+	flex-grow:0;
+	width:90vw;
+	height:100vh;
+	border-left:1px solid black;
+	overflow:auto;
+	position:relative;
+}
+
+#center-indicator {
+	position:absolute;
+	width:4px;
+	height:4px;
+	background:red;
+	border-radius:50%;
+	pointer-events:none;
+}
+
+#direction-indicator {
+	position:absolute;
+	width:30px;
+	height:4px;
+	background:blue;
+	pointer-events:none;
+}
+</style>
+<body>
+
+<div id="container">
+	<div id="left-bar">
+		<div id="cell-indicator"></div>
+	</div>
+	<div id="main-frame">
+		<div id="direction-indicator"></div>
+		<div id="center-indicator"></div>
+	</div>
+</div>
+
+<script type="text/javascript">
+const BOARD = 'monaco';
+
+let $ = (id) => document.getElementById(id);
+
+// Create obj loading external svg
+let obj = document.createElement('object');
+obj.data = BOARD + ".svg";
+obj.type = "image/svg+xml";
+obj.id = "board";
+$("main-frame").appendChild(obj);
+
+function computeCenterOfMass(path){
+	const M = 40;
+	let pathLength = Math.floor(path.getTotalLength());
+	let totX = 0, totY = 0;
+	for(let i = 0; i < M; i++){
+		let pos = path.getPointAtLength(i * pathLength / M);
+		totX += pos.x;
+		totY += pos.y;
+	}
+
+	return {
+		x: totX / M,
+		y: totY / M,
+	}
+}
+
+
+/*
+function findLineByLeastSquares(path) {
+		const M = 100;
+		let values_x = [], values_y = [];
+		let pathLength = Math.floor(path.getTotalLength());
+		for(let i = 0; i < M; i++){
+			let pos = path.getPointAtLength(Math.random() * pathLength);
+			values_x.push(pos.x);
+			values_y.push(pos.y);
+		}
+
+    var x_sum = 0;
+    var y_sum = 0;
+    var xy_sum = 0;
+    var xx_sum = 0;
+    var count = 0;
+
+    var x = 0;
+    var y = 0;
+    var values_length = M;
+    for (let i = 0; i< values_length; i++) {
+        x = values_x[i];
+        y = values_y[i];
+        x_sum+= x;
+        y_sum+= y;
+        xx_sum += x*x;
+        xy_sum += x*y;
+        count++;
+    }
+
+    var m = (count*xy_sum - x_sum*y_sum) / (count*xx_sum - x_sum*x_sum);
+    var b = (y_sum/count) - (m*x_sum)/count;
+		return m;
+}
+*/
+
+function dist2(pos1, pos2){
+	return (pos1.x - pos2.x)*(pos1.x - pos2.x) + (pos1.y - pos2.y)*(pos1.y - pos2.y);
+}
+
+function findLine(cell) {
+		let pathLength = Math.floor(cell.getTotalLength());
+		const M = 200;
+		let minDist = pathLength*pathLength;
+		let minPos1 = null;
+		let minI = 0;
+		for(let i = 0; i < M; i++){
+			let pos = cell.getPointAtLength(i * pathLength / M);
+			let d = dist2(pos, cell.center);
+			if(d < minDist){
+				minDist = d;
+				minPos1 = pos;
+				minI = i;
+			}
+		}
+
+		minDist = pathLength*pathLength;
+		let minPos2 = null;
+		for(let i = minI + M/2 - M/5; i < minI + M/2 + M/5; i++){
+			let pos = cell.getPointAtLength((i % M) * pathLength / M);
+			let d = dist2(pos, cell.center);
+			if(d < minDist){
+				minDist = d;
+				minPos2 = pos;
+			}
+		}
+
+		return - (minPos2.x - minPos1.x) / (minPos2.y - minPos1.y);
+}
+
+
+
+obj.onload = () => {
+	// Find the cells
+	let svg = board.contentDocument.querySelector("svg");
+	let paths = [...svg.querySelectorAll("path")];
+	let cells = {};
+	paths.forEach(cell => {
+		// Remove the "path" prefix auto-added by Inkscape
+		let id = parseInt(cell.id.substr(4));
+		cells[id] = cell;
+		cell.center = computeCenterOfMass(cell);
+
+		cell.addEventListener("mouseenter", () => {
+			$('cell-indicator').innerHTML = id;
+			let box = cell.getBBox();
+			$('center-indicator').style.left = (cell.center.x - 2) + "px";
+			$('center-indicator').style.top = (cell.center.y - 2) + "px";
+
+
+			let m = findLine(cell);
+			let rotation = Math.atan2(m, 1) * 180 / Math.PI;
+			$('direction-indicator').style.left = (cell.center.x - 15) + "px";
+			$('direction-indicator').style.top = (cell.center.y - 2) + "px";
+			$('direction-indicator').style.transform = `rotate(${rotation}deg)`;
+
+			cell.style.fill = "gray";
+		});
+		cell.addEventListener("mouseleave", () => {
+			$('cell-indicator').innerHTML = '';
+			cell.style.fill = "black";
+		});
+	});
+	console.log(paths);
+
+};
+
+
+
+//		 	<image x="0" y="0" width="4304" height="2813" href="formula.jpeg" draggable="false" />
+// 	<img src="testFormulaD/formula.jpeg" id="img" />
+
+/*
+var xmlns = "http://www.w3.org/2000/svg";
+
+monacoBoard.forEach(cell => {
+	var polygon = document.createElementNS(xmlns, "polygon");
+	let points = [];
+	for(var i = 0; i < cell.box.length; i++){
+		points.push(cell.box[i][0][0] + ", " + cell.box[i][0][1]);
+	}
+
+	polygon.setAttribute("points", points.join(","));
+	document.getElementById("svg").querySelector('#group').appendChild(polygon);
+});
+
+var data = (new XMLSerializer()).serializeToString(document.getElementById("svg"));
+console.log(data);
+*/
+</script>
+
+</body>
+</html>
