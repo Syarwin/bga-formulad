@@ -87,16 +87,26 @@ function toggleShow(section, val = null) {
 SECTIONS.forEach((section) => {
   modes[section] = modes[section] || {
     show: false,
-    edit: false,
   };
 
   $(`show-${section}`).addEventListener("click", () => toggleShow(section));
   toggleShow(section, modes[section].show);
 
-  $(`edit-${section}`).addEventListener("click", () => {
-    modes[section].edit = !modes[section].edit;
-    $("main-frame").classList.toggle(`edit-${section}`, modes[section].edit);
-    $(`edit-${section}`).classList.toggle("active", modes[section].edit);
+  ["edit", "swap"].forEach((action) => {
+    if (!$(`${action}-${section}`)) return;
+
+    modes[section][action] = false;
+    $(`${action}-${section}`).addEventListener("click", () => {
+      modes[section][action] = !modes[section][action];
+      $("main-frame").classList.toggle(
+        `edit-${section}`,
+        modes[section][action]
+      );
+      $(`${action}-${section}`).classList.toggle(
+        "active",
+        modes[section][action]
+      );
+    });
   });
 
   $(`generate-${section}`).addEventListener("click", () => {
@@ -124,6 +134,12 @@ function onMouseClickCell(id, cell, evt) {
       y = evt.clientY - 3;
     cellsData.cells[id].center = { x, y };
     updateCenters();
+    saveCellsData();
+    return;
+  }
+
+  if (modes.directions.swap) {
+    swapDirection(id);
     saveCellsData();
     return;
   }
@@ -213,8 +229,8 @@ function generateDirections() {
   cellIds.forEach((id) => {
     let cell = cells[id];
     let center = cellsData.cells[id].center;
-    let slope = computeTangentOfCell(cell, center);
-    cellsData.cells[id].slope = slope;
+    let angle = computeTangentOfCell(cell, center);
+    cellsData.cells[id].angle = angle;
   });
 
   cellsData.computed.directions = true;
@@ -226,17 +242,26 @@ function generateDirections() {
 
 function updateDirections() {
   cellIds.forEach((cellId) => {
-    if (!$(`direction-${cellId}`)) {
-      $(`center-${cellId}`).insertAdjacentHTML(
-        "beforeend",
-        `<div class='direction-indicator' id='direction-${cellId}'></div>`
-      );
-    }
-
-    let m = cellsData.cells[cellId].slope;
-    let rotation = (Math.atan2(m, 1) * 180) / Math.PI;
-    $(`direction-${cellId}`).style.transform = `rotate(${rotation}deg)`;
+    updateDirection(cellId);
   });
+}
+
+function updateDirection(cellId) {
+  if (!$(`direction-${cellId}`)) {
+    $(`center-${cellId}`).insertAdjacentHTML(
+      "beforeend",
+      `<div class='direction-indicator' id='direction-${cellId}'></div>`
+    );
+  }
+
+  let angle = cellsData.cells[cellId].angle ?? 0;
+  $(`direction-${cellId}`).style.transform = `rotate(${angle}deg)`;
+}
+
+function swapDirection(cellId) {
+  let angle = cellsData.cells[cellId].angle;
+  cellsData.cells[cellId].angle = (angle + 180) % 360;
+  updateDirection(cellId);
 }
 
 function computeTangentOfCell(cell, center) {
@@ -266,7 +291,9 @@ function computeTangentOfCell(cell, center) {
     }
   }
 
-  return -(minPos2.x - minPos1.x) / (minPos2.y - minPos1.y);
+  let slope = -(minPos2.x - minPos1.x) / (minPos2.y - minPos1.y);
+  let rotation = (Math.atan2(slope, 1) * 180) / Math.PI;
+  return rotation;
 }
 
 ////////////////////////
