@@ -1,22 +1,23 @@
 const BOARD = "monaco";
 
 // Sections
-const SECTIONS = ["centers", "directions"];
+const SECTIONS = ["centers", "directions", "neighbours"];
 
 // Cellsdata will be stored here
 let cellsData = localStorage.getItem("formulaD" + BOARD);
-if (cellsData !== null) {
+if (cellsData != "") {
   cellsData = JSON.parse(cellsData);
 } else {
   cellsData = CIRCUITS[BOARD] ?? { computed: {}, cells: {} };
 }
 
-function saveCellsData() {
-  let data = JSON.stringify(cellsData);
-  localStorage.setItem("formulaD" + BOARD, data);
-  $("data").innerHTML = data;
-  updateStatus();
-}
+$("force-refresh").addEventListener("click", () => {
+  localStorage.setItem("formulaD" + BOARD, "");
+  window.location.reload();
+});
+
+let cellIds = [];
+let cells = {};
 
 function updateStatus() {
   SECTIONS.forEach((section) => {
@@ -27,6 +28,22 @@ function updateStatus() {
   });
 }
 
+function saveCellsData() {
+  if (cells.length > 0) {
+    let toKeep = Object.keys(cells);
+    let t = Object.keys(cellsData.cells);
+    t.forEach((cId) => {
+      if (!toKeep.includes(cId)) {
+        delete cellsData.cells[cId];
+      }
+    });
+  }
+
+  let data = JSON.stringify(cellsData);
+  localStorage.setItem("formulaD" + BOARD, data);
+  $("data").innerHTML = data;
+  updateStatus();
+}
 saveCellsData();
 
 // Create obj loading external svg
@@ -38,15 +55,13 @@ obj.style.backgroundImage = `url(${BOARD}.jpg)`;
 $("main-frame").appendChild(obj);
 
 // Load svg
-let cellIds = [];
-let cells = {};
 obj.onload = () => {
   // Find the cells
   let svg = obj.contentDocument.querySelector("svg");
   let paths = [...svg.querySelectorAll("path")];
   paths.forEach((cell) => {
     // Remove the "path" prefix auto-added by Inkscape
-    let id = parseInt(cell.id.substr(4));
+    let id = parseInt(cell.id.substring(4));
     cellIds.push(id);
     cells[id] = cell;
     if (!cellsData.cells[id]) {
@@ -116,18 +131,60 @@ SECTIONS.forEach((section) => {
   });
 });
 
+let highlightedIds = [];
+function updateHighlights(cellIds = null) {
+  if (cellIds != null) {
+    clearHighlights();
+    highlightedIds = cellIds.map((t) => parseInt(t));
+  }
+
+  highlightedIds.forEach((cellId) => {
+    cells[cellId].style.fill = "#ffffffaa";
+  });
+}
+function clearHighlights() {
+  if (highlightedIds.length > 0) {
+    highlightedIds.forEach((cellId) => {
+      cells[cellId].style.fill = "transparent";
+    });
+    highlightedIds = [];
+  }
+}
+
 function onMouseEnterCell(id, cell) {
   $("cell-indicator-counter").innerHTML = id;
-  cell.style.fill = "gray";
-  cell.style.strokeWidth = "2";
+
+  if (
+    selectedCell === null &&
+    modes.neighbours.show &&
+    cellsData.computed.neighbours
+  ) {
+    let neighbourIds = cellsData.cells[id].neighbours;
+    updateHighlights(neighbourIds);
+  }
+
+  if (id === selectedCell) return;
+  if (highlightedIds.includes(id)) {
+    cell.style.fill = "#ffffff";
+  } else {
+    cell.style.fill = "gray";
+    cell.style.strokeWidth = "2";
+  }
 }
 
 function onMouseLeaveCell(id, cell) {
   $("cell-indicator-counter").innerHTML = "----";
-  cell.style.fill = "transparent";
-  cell.style.strokeWidth = "1";
+  if (id === selectedCell) return;
+
+  if (highlightedIds.includes(id)) {
+    cell.style.fill = "#ffffffaa";
+  } else {
+    cell.style.fill = "transparent";
+    cell.style.strokeWidth = "1";
+  }
 }
 
+let selectedCell = null;
 function onMouseClickCell(id, cell, evt) {
   if (modes.centers.edit) {
     let x = evt.clientX - 1,
@@ -142,6 +199,20 @@ function onMouseClickCell(id, cell, evt) {
     swapDirection(id);
     saveCellsData();
     return;
+  }
+
+  if (modes.neighbours.edit) {
+    if (selectedCell == null) {
+      selectedCell = id;
+      cell.style.fill = "green";
+      updateHighlights(cellsData.cells[id].neighbours);
+    } else if (selectedCell == id) {
+      selectedCell = null;
+      cell.style.fill = "transparent";
+      clearHighlights();
+    } else {
+      toggleNeighbour(selectedCell, id, cell);
+    }
   }
 }
 
@@ -294,6 +365,141 @@ function computeTangentOfCell(cell, center) {
   let slope = -(minPos2.x - minPos1.x) / (minPos2.y - minPos1.y);
   let rotation = (Math.atan2(slope, 1) * 180) / Math.PI;
   return rotation;
+}
+
+///////////////////////////////////////////////////////////
+//  _   _      _       _     _
+// | \ | | ___(_) __ _| |__ | |__   ___  _   _ _ __ ___
+// |  \| |/ _ \ |/ _` | '_ \| '_ \ / _ \| | | | '__/ __|
+// | |\  |  __/ | (_| | | | | |_) | (_) | |_| | |  \__ \
+// |_| \_|\___|_|\__, |_| |_|_.__/ \___/ \__,_|_|  |___/
+//               |___/
+///////////////////////////////////////////////////////////
+function generateNeighbours() {
+  if (!cellsData.computed.centers || !cellsData.computed.directions) {
+    alert("You must compute the centers and directions first");
+    return false;
+  }
+
+  if (
+    (cellsData.computed.neighbours || false) &&
+    !confirm("Are you sure you want to overwrite existing neighbours ?")
+  ) {
+    return;
+  }
+
+  cellIds.forEach((id) => {
+    let neighbours = computeNeighbours(id);
+    cellsData.cells[id].neighbours = neighbours;
+  });
+
+  cellsData.computed.neighbours = true;
+  this.saveCellsData();
+  toggleShow("neighbours", true);
+  console.log("Neighbours computed");
+}
+
+function computeNeighbours(id) {
+  let center = cellsData.cells[id].center;
+  let angle = (cellsData.cells[id].angle * Math.PI) / 180;
+
+  // Sort cells by distance
+  let dists = {};
+  // Keep only the cells not orthogonal to direction
+  let ids = Object.keys(cells).filter((cellId) => {
+    if (cellId == id) return false;
+
+    let center2 = cellsData.cells[cellId].center;
+    let v = { x: center2.x - center.x, y: center2.y - center.y };
+    let alpha = Math.atan2(v.y, v.x) - angle;
+    if (alpha < -Math.PI / 2) alpha += 2 * Math.PI;
+
+    return Math.abs(Math.cos(alpha)) > 0.2;
+  });
+
+  ids.forEach((cellId) => {
+    let center2 = cellsData.cells[cellId].center;
+    dists[cellId] =
+      (center.x - center2.x) * (center.x - center2.x) +
+      (center.y - center2.y) * (center.y - center2.y);
+  });
+  ids = ids.sort(function (id1, id2) {
+    return dists[id1] - dists[id2];
+  });
+
+  // Keep only the 6 closest ones
+  ids = ids.slice(0, 6);
+
+  // Keep only the ones close enough
+  let minDist = dists[ids[0]];
+  ids = ids.filter((cellId) => dists[cellId] < 2 * minDist);
+
+  return ids.map((t) => parseInt(t));
+}
+
+function toggleNeighbour(selectedCell, id, cell) {
+  let neighbours = cellsData.cells[selectedCell].neighbours;
+  let i = neighbours.findIndex((cId) => cId == id);
+
+  if (i === -1) {
+    // New neighbour => add it
+    neighbours.push(id);
+    highlightedIds.push(id);
+    cell.style.fill = "#ffffff";
+  } else {
+    neighbours.splice(i, 1);
+    updateHighlights(neighbours);
+  }
+  saveCellsData();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+// __     __    _ _     _   _   _      _       _     _
+// \ \   / /_ _| (_) __| | | \ | | ___(_) __ _| |__ | |__   ___  _   _ _ __ ___
+//  \ \ / / _` | | |/ _` | |  \| |/ _ \ |/ _` | '_ \| '_ \ / _ \| | | | '__/ __|
+//   \ V / (_| | | | (_| | | |\  |  __/ | (_| | | | | |_) | (_) | |_| | |  \__ \
+//    \_/ \__,_|_|_|\__,_| |_| \_|\___|_|\__, |_| |_|_.__/ \___/ \__,_|_|  |___/
+//                                       |___/
+/////////////////////////////////////////////////////////////////////////////////////
+
+function computeValidNeighbours(id) {
+  let center = cellsData.cells[id].center;
+  let angle = (cellsData.cells[id].angle * Math.PI) / 180;
+
+  // Keep only the cells within the cone angle
+  let coneAngle = Math.PI / 3;
+  let ids = Object.keys(cells).filter((cellId) => {
+    if (cellId == id) return false;
+
+    let center2 = cellsData.cells[cellId].center;
+    let v = { x: center2.x - center.x, y: center2.y - center.y };
+    let alpha = Math.atan2(v.y, v.x) - angle;
+    if (alpha < -Math.PI / 2) alpha += 2 * Math.PI;
+
+    return alpha > -coneAngle && alpha < coneAngle;
+  });
+
+  // Sort cells by distance
+  let dists = {};
+  ids.forEach((cellId) => {
+    let center2 = cellsData.cells[cellId].center;
+    dists[cellId] =
+      (center.x - center2.x) * (center.x - center2.x) +
+      (center.y - center2.y) * (center.y - center2.y);
+  });
+  ids = ids.sort(function (id1, id2) {
+    return dists[id1] - dists[id2];
+  });
+
+  // Keep only the 6 closest ones
+  ids = ids.slice(0, 6);
+
+  // Keep only the ones close enough
+  let minDist = dists[ids[0]];
+  ids = ids.filter((cellId) => dists[cellId] < 2.6 * minDist);
+
+  console.log(id, ids);
+  return ids;
 }
 
 ////////////////////////
