@@ -388,9 +388,19 @@ function generateNeighbours() {
     return;
   }
 
+  // Compute neighbours
   cellIds.forEach((id) => {
     let neighbours = computeNeighbours(id);
     cellsData.cells[id].neighbours = neighbours;
+  });
+  // Ensure the relation is symmetric
+  cellIds.forEach((cellId) => {
+    cellsData.cells[id].neighbours.forEach((id) => {
+      let neighbours2 = cellsData.cells[id].neighbours;
+      if (!neighbours2.includes(cellId)) {
+        neighbours2.push(cellId);
+      }
+    });
   });
 
   cellsData.computed.neighbours = true;
@@ -446,8 +456,23 @@ function toggleNeighbour(selectedCell, id, cell) {
     neighbours.push(id);
     highlightedIds.push(id);
     cell.style.fill = "#ffffff";
+
+    // Add myself to new neighbour as well
+    let neighbours2 = cellsData.cells[id].neighbours;
+    if (!neighbours2.includes(selectedCell)) {
+      neighbours2.push(selectedCell);
+    }
   } else {
+    // Already there => remove it
     neighbours.splice(i, 1);
+
+    // Remove myself to old neighbour as well
+    let neighbours2 = cellsData.cells[id].neighbours;
+    let j = neighbours2.findIndex((cId) => cId == selectedCell);
+    if (j !== -1) {
+      neighbours2.splice(j, 1);
+    }
+
     updateHighlights(neighbours);
   }
   saveCellsData();
