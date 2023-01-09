@@ -1,7 +1,7 @@
 const BOARD = "monaco";
 
 // Sections
-const SECTIONS = ["centers", "directions", "neighbours"];
+const SECTIONS = ["centers", "directions", "neighbours", "adjacence"];
 
 // Cellsdata will be stored here
 let cellsData = localStorage.getItem("formulaD" + BOARD);
@@ -132,23 +132,35 @@ SECTIONS.forEach((section) => {
 });
 
 let highlightedIds = [];
-function updateHighlights(cellIds = null) {
+let highlightedGreenIds = [];
+function updateHighlights(cellIds = null, greenCellIds = null) {
   if (cellIds != null) {
     clearHighlights();
     highlightedIds = cellIds.map((t) => parseInt(t));
+  }
+  if (greenCellIds != null) {
+    clearGreenHighlights();
+    highlightedGreenIds = greenCellIds.map((t) => parseInt(t));
   }
 
   highlightedIds.forEach((cellId) => {
     cells[cellId].style.fill = "#ffffffaa";
   });
+  highlightedGreenIds.forEach((cellId) => {
+    cells[cellId].style.fill = "#00ff00aa";
+  });
 }
 function clearHighlights() {
-  if (highlightedIds.length > 0) {
-    highlightedIds.forEach((cellId) => {
-      cells[cellId].style.fill = "transparent";
-    });
-    highlightedIds = [];
-  }
+  highlightedIds.forEach((cellId) => {
+    cells[cellId].style.fill = "transparent";
+  });
+  highlightedIds = [];
+}
+function clearGreenHighlights() {
+  highlightedGreenIds.forEach((cellId) => {
+    cells[cellId].style.fill = "transparent";
+  });
+  highlightedGreenIds = [];
 }
 
 function onMouseEnterCell(id, cell) {
@@ -162,9 +174,19 @@ function onMouseEnterCell(id, cell) {
     let neighbourIds = cellsData.cells[id].neighbours;
     updateHighlights(neighbourIds);
   }
+  if (
+    selectedCell === null &&
+    modes.adjacence.show &&
+    cellsData.computed.adjacence
+  ) {
+    let adjacentCellIds = cellsData.cells[id].adjacence;
+    updateHighlights(null, adjacentCellIds);
+  }
 
   if (id === selectedCell) return;
-  if (highlightedIds.includes(id)) {
+  if (highlightedGreenIds.includes(id)) {
+    cell.style.fill = "#00ff00ee";
+  } else if (highlightedIds.includes(id)) {
     cell.style.fill = "#ffffff";
   } else {
     cell.style.fill = "gray";
@@ -176,7 +198,9 @@ function onMouseLeaveCell(id, cell) {
   $("cell-indicator-counter").innerHTML = "----";
   if (id === selectedCell) return;
 
-  if (highlightedIds.includes(id)) {
+  if (highlightedGreenIds.includes(id)) {
+    cell.style.fill = "#00ff00aa";
+  } else if (highlightedIds.includes(id)) {
     cell.style.fill = "#ffffffaa";
   } else {
     cell.style.fill = "transparent";
@@ -212,6 +236,24 @@ function onMouseClickCell(id, cell, evt) {
       clearHighlights();
     } else {
       toggleNeighbour(selectedCell, id, cell);
+    }
+  }
+
+  if (modes.adjacence.edit) {
+    if (selectedCell == null) {
+      selectedCell = id;
+      cell.style.fill = "green";
+      updateHighlights(
+        cellsData.cells[id].neighbours,
+        cellsData.cells[id].adjacence
+      );
+    } else if (selectedCell == id) {
+      selectedCell = null;
+      cell.style.fill = "transparent";
+      clearHighlights();
+      clearGreenHighlights();
+    } else {
+      toggleAdjacence(selectedCell, id, cell);
     }
   }
 }
@@ -478,22 +520,46 @@ function toggleNeighbour(selectedCell, id, cell) {
   saveCellsData();
 }
 
-/////////////////////////////////////////////////////////////////////////////////////
-// __     __    _ _     _   _   _      _       _     _
-// \ \   / /_ _| (_) __| | | \ | | ___(_) __ _| |__ | |__   ___  _   _ _ __ ___
-//  \ \ / / _` | | |/ _` | |  \| |/ _ \ |/ _` | '_ \| '_ \ / _ \| | | | '__/ __|
-//   \ V / (_| | | | (_| | | |\  |  __/ | (_| | | | | |_) | (_) | |_| | |  \__ \
-//    \_/ \__,_|_|_|\__,_| |_| \_|\___|_|\__, |_| |_|_.__/ \___/ \__,_|_|  |___/
-//                                       |___/
-/////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
+//     _       _  _
+//    / \   __| |(_) __ _  ___ ___ _ __   ___ ___
+//   / _ \ / _` || |/ _` |/ __/ _ \ '_ \ / __/ _ \
+//  / ___ \ (_| || | (_| | (_|  __/ | | | (_|  __/
+// /_/   \_\__,_|/ |\__,_|\___\___|_| |_|\___\___|
+//             |__/
+////////////////////////////////////////////////////////
+function generateAdjacence() {
+  if (!cellsData.computed.neighbours) {
+    alert("You must compute the neighbours first");
+    return false;
+  }
 
-function computeValidNeighbours(id) {
+  if (
+    (cellsData.computed.adjacence || false) &&
+    !confirm("Are you sure you want to overwrite existing adjacence ?")
+  ) {
+    return;
+  }
+
+  // Compute adjacence
+  cellIds.forEach((id) => {
+    let neighbours = computeAdjacentCells(id);
+    cellsData.cells[id].adjacence = neighbours;
+  });
+
+  cellsData.computed.adjacence = true;
+  this.saveCellsData();
+  toggleShow("adjacence", true);
+  console.log("Adjacence computed");
+}
+
+function computeAdjacentCells(id) {
   let center = cellsData.cells[id].center;
   let angle = (cellsData.cells[id].angle * Math.PI) / 180;
 
   // Keep only the cells within the cone angle
   let coneAngle = Math.PI / 3;
-  let ids = Object.keys(cells).filter((cellId) => {
+  let ids = cellsData.cells[id].neighbours.filter((cellId) => {
     if (cellId == id) return false;
 
     let center2 = cellsData.cells[cellId].center;
@@ -504,27 +570,24 @@ function computeValidNeighbours(id) {
     return alpha > -coneAngle && alpha < coneAngle;
   });
 
-  // Sort cells by distance
-  let dists = {};
-  ids.forEach((cellId) => {
-    let center2 = cellsData.cells[cellId].center;
-    dists[cellId] =
-      (center.x - center2.x) * (center.x - center2.x) +
-      (center.y - center2.y) * (center.y - center2.y);
-  });
-  ids = ids.sort(function (id1, id2) {
-    return dists[id1] - dists[id2];
-  });
-
-  // Keep only the 6 closest ones
-  ids = ids.slice(0, 6);
-
-  // Keep only the ones close enough
-  let minDist = dists[ids[0]];
-  ids = ids.filter((cellId) => dists[cellId] < 2.6 * minDist);
-
-  console.log(id, ids);
   return ids;
+}
+
+function toggleAdjacence(selectedCell, id, cell) {
+  let neighbours = cellsData.cells[selectedCell].adjacence;
+  let i = neighbours.findIndex((cId) => cId == id);
+
+  if (i === -1) {
+    // New neighbour => add it
+    neighbours.push(id);
+    highlightedGreenIds.push(id);
+    cell.style.fill = "#00ff00ee";
+  } else {
+    // Already there => remove it
+    neighbours.splice(i, 1);
+    updateHighlights(null, neighbours);
+  }
+  saveCellsData();
 }
 
 ////////////////////////
