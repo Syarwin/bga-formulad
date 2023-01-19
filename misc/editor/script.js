@@ -1,7 +1,7 @@
 const BOARD = "monaco";
 
 // Sections
-const SECTIONS = ["centers", "directions", "neighbours", "adjacence"];
+const SECTIONS = ["centers", "directions", "neighbours", "adjacence", "lanes"];
 
 // Cellsdata will be stored here
 let cellsData = localStorage.getItem("formulaD" + BOARD);
@@ -107,7 +107,7 @@ SECTIONS.forEach((section) => {
   $(`show-${section}`).addEventListener("click", () => toggleShow(section));
   toggleShow(section, modes[section].show);
 
-  ["edit", "swap"].forEach((action) => {
+  ["edit", "swap", "check"].forEach((action) => {
     if (!$(`${action}-${section}`)) return;
 
     modes[section][action] = false;
@@ -131,80 +131,76 @@ SECTIONS.forEach((section) => {
   });
 });
 
-let highlightedIds = [];
-let highlightedGreenIds = [];
-function updateHighlights(cellIds = null, greenCellIds = null) {
+let highlightedCells = {};
+function highlightCells(cellIds = null, className = null) {
   if (cellIds != null) {
-    clearHighlights();
-    highlightedIds = cellIds.map((t) => parseInt(t));
-  }
-  if (greenCellIds != null) {
-    clearGreenHighlights();
-    highlightedGreenIds = greenCellIds.map((t) => parseInt(t));
+    cellIds.forEach(
+      (cellId) => (highlightedCells[cellId] = className[cellId] ?? className)
+    );
   }
 
-  highlightedIds.forEach((cellId) => {
-    cells[cellId].style.fill = "#ffffffaa";
-  });
-  highlightedGreenIds.forEach((cellId) => {
-    cells[cellId].style.fill = "#00ff00aa";
+  Object.keys(highlightedCells).forEach((cellId) => {
+    let c = highlightedCells[cellId];
+    if (c == "white") c = "#ffffffaa";
+    if (c == "green") c = "#00ff00aa";
+
+    cells[cellId].style.fill = c;
   });
 }
+
 function clearHighlights() {
-  highlightedIds.forEach((cellId) => {
+  Object.keys(highlightedCells).forEach((cellId) => {
     cells[cellId].style.fill = "transparent";
   });
-  highlightedIds = [];
-}
-function clearGreenHighlights() {
-  highlightedGreenIds.forEach((cellId) => {
-    cells[cellId].style.fill = "transparent";
-  });
-  highlightedGreenIds = [];
+  highlightedCells = {};
 }
 
 function onMouseEnterCell(id, cell) {
   $("cell-indicator-counter").innerHTML = id;
 
-  if (
-    selectedCell === null &&
-    modes.neighbours.show &&
-    cellsData.computed.neighbours
-  ) {
-    let neighbourIds = cellsData.cells[id].neighbours;
-    updateHighlights(neighbourIds);
-  }
-  if (
-    selectedCell === null &&
-    modes.adjacence.show &&
-    cellsData.computed.adjacence
-  ) {
-    let adjacentCellIds = cellsData.cells[id].adjacence;
-    updateHighlights(null, adjacentCellIds);
+  if (selectedCell === null) {
+    if (modes.lanes.check) {
+      let lane = computeLane(id);
+      let highlights = {};
+      lane.forEach((cellId, i) => {
+        let opacity = Math.max((255.0 - i) / 255.0, 0);
+        highlights[cellId] = `rgba(255,255,255, ${opacity})`;
+      });
+      highlightCells(lane, highlights);
+    } else {
+      // Otherwise, display neighbours and/or adjacence
+      if (modes.neighbours.show && cellsData.computed.neighbours) {
+        let neighbourIds = cellsData.cells[id].neighbours;
+        highlightCells(neighbourIds, "white");
+      }
+      if (modes.adjacence.show && cellsData.computed.adjacence) {
+        let adjacentCellIds = cellsData.cells[id].adjacence;
+        highlightCells(adjacentCellIds, "green");
+      }
+    }
   }
 
   if (id === selectedCell) return;
-  if (highlightedGreenIds.includes(id)) {
-    cell.style.fill = "#00ff00ee";
-  } else if (highlightedIds.includes(id)) {
-    cell.style.fill = "#ffffff";
-  } else {
-    cell.style.fill = "gray";
-    cell.style.strokeWidth = "2";
-  }
+
+  let color = cell.style.fill;
+  if (color == "transparent") color = "rgb(100,100,100)";
+  cell.style.fill = rgba2hex(color, "ee");
+  cell.style.strokeWidth = "2";
 }
 
 function onMouseLeaveCell(id, cell) {
   $("cell-indicator-counter").innerHTML = "----";
   if (id === selectedCell) return;
 
-  if (highlightedGreenIds.includes(id)) {
-    cell.style.fill = "#00ff00aa";
-  } else if (highlightedIds.includes(id)) {
-    cell.style.fill = "#ffffffaa";
+  cell.style.strokeWidth = "1";
+  let color = rgba2hex(cell.style.fill, "aa");
+  if (color == "#646464aa") color = "transparent";
+  cell.style.fill = color;
+
+  if (selectedCell == null) {
+    clearHighlights();
   } else {
-    cell.style.fill = "transparent";
-    cell.style.strokeWidth = "1";
+    highlightCells();
   }
 }
 
@@ -225,11 +221,23 @@ function onMouseClickCell(id, cell, evt) {
     return;
   }
 
+  if (modes.directions.edit) {
+    if (selectedCell == null) {
+      selectedCell = id;
+      cell.style.fill = "green";
+    } else {
+      changeDirection(selectedCell, evt);
+      selectedCell = null;
+      saveCellsData();
+      clearHighlights();
+    }
+  }
+
   if (modes.neighbours.edit) {
     if (selectedCell == null) {
       selectedCell = id;
       cell.style.fill = "green";
-      updateHighlights(cellsData.cells[id].neighbours);
+      highlightCells(cellsData.cells[id].neighbours, "white");
     } else if (selectedCell == id) {
       selectedCell = null;
       cell.style.fill = "transparent";
@@ -237,6 +245,7 @@ function onMouseClickCell(id, cell, evt) {
     } else {
       toggleNeighbour(selectedCell, id, cell);
     }
+    return;
   }
 
   if (modes.adjacence.edit) {
@@ -255,6 +264,7 @@ function onMouseClickCell(id, cell, evt) {
     } else {
       toggleAdjacence(selectedCell, id, cell);
     }
+    return;
   }
 }
 
@@ -377,6 +387,15 @@ function swapDirection(cellId) {
   updateDirection(cellId);
 }
 
+function changeDirection(id, evt) {
+  let x = evt.clientX - 1,
+    y = evt.clientY - 3;
+  let center = cellsData.cells[id].center;
+  cellsData.cells[id].angle =
+    (Math.atan2(y - center.y, x - center.x) * 180) / Math.PI;
+  updateDirection(id);
+}
+
 function computeTangentOfCell(cell, center) {
   let pathLength = Math.floor(cell.getTotalLength());
   const M = 200;
@@ -496,8 +515,7 @@ function toggleNeighbour(selectedCell, id, cell) {
   if (i === -1) {
     // New neighbour => add it
     neighbours.push(id);
-    highlightedIds.push(id);
-    cell.style.fill = "#ffffff";
+    highlightCells([id], "white");
 
     // Add myself to new neighbour as well
     let neighbours2 = cellsData.cells[id].neighbours;
@@ -515,7 +533,7 @@ function toggleNeighbour(selectedCell, id, cell) {
       neighbours2.splice(j, 1);
     }
 
-    updateHighlights(neighbours);
+    highlightCells([id], "transparent");
   }
   saveCellsData();
 }
@@ -580,14 +598,51 @@ function toggleAdjacence(selectedCell, id, cell) {
   if (i === -1) {
     // New neighbour => add it
     neighbours.push(id);
-    highlightedGreenIds.push(id);
-    cell.style.fill = "#00ff00ee";
+    highlightCells([id], "green");
   } else {
     // Already there => remove it
     neighbours.splice(i, 1);
-    updateHighlights(null, neighbours);
+    highlightCells([id], "white");
   }
   saveCellsData();
+}
+
+////////////////////////////////
+//  _
+// | |    __ _ _ __   ___  ___
+// | |   / _` | '_ \ / _ \/ __|
+// | |__| (_| | | | |  __/\__ \
+// |_____\__,_|_| |_|\___||___/
+////////////////////////////////
+
+function computeLane(id) {
+  let current = id;
+  let visited = [];
+  while (!visited.includes(current)) {
+    visited.push(current);
+
+    let adj = cellsData.cells[current].adjacence;
+    if (adj.length == 1) {
+      current = adj[0];
+    } else {
+      let center = cellsData.cells[current].center;
+      let angle = (cellsData.cells[current].angle * Math.PI) / 180;
+      let angles = adj.map((cellId) => {
+        let center2 = cellsData.cells[cellId].center;
+        let v = { x: center2.x - center.x, y: center2.y - center.y };
+        let alpha = Math.atan2(v.y, v.x) - angle;
+        if (alpha < -Math.PI / 2) alpha += 2 * Math.PI;
+        return Math.abs(alpha);
+      });
+      let ids = Object.keys(adj);
+      ids = ids.sort(function (id1, id2) {
+        return angles[id1] - angles[id2];
+      });
+      current = adj[ids[0]];
+    }
+  }
+
+  return visited;
 }
 
 ////////////////////////
@@ -607,6 +662,34 @@ function dist2(pos1, pos2) {
 
 function $(id) {
   return document.getElementById(id);
+}
+
+function rgba2hex(orig, forceAlpha = null) {
+  var a,
+    isPercent,
+    rgb = orig
+      .replace(/\s/g, "")
+      .match(/^rgba?\((\d+),(\d+),(\d+),?([^,\s)]+)?/i),
+    alpha = ((rgb && rgb[4]) || "").trim(),
+    hex = rgb
+      ? (rgb[1] | (1 << 8)).toString(16).slice(1) +
+        (rgb[2] | (1 << 8)).toString(16).slice(1) +
+        (rgb[3] | (1 << 8)).toString(16).slice(1)
+      : orig;
+
+  if (alpha !== "") {
+    a = alpha;
+  } else {
+    a = 01;
+  }
+  // multiply before convert to HEX
+  a = ((a * 255) | (1 << 8)).toString(16).slice(1);
+  if (forceAlpha) {
+    a = forceAlpha;
+  }
+  hex = hex + a;
+
+  return "#" + hex;
 }
 
 /////////////////////////////////////////
