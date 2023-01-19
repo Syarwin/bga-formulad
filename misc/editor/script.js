@@ -1,7 +1,14 @@
 const BOARD = "monaco";
 
 // Sections
-const SECTIONS = ["centers", "directions", "neighbours", "adjacence", "lanes"];
+const SECTIONS = [
+  "centers",
+  "directions",
+  "neighbours",
+  "adjacence",
+  "lanes",
+  "positions",
+];
 
 // Cellsdata will be stored here
 let cellsData = localStorage.getItem("formulaD" + BOARD);
@@ -81,6 +88,7 @@ obj.onload = () => {
   if (cellsData.computed.centers || false) updateCenters();
   if (cellsData.computed.directions || false) updateDirections();
   if (cellsData.computed.laneEnds || false) updateLaneEnds();
+  if (cellsData.computed.positions || false) updatePositions();
 };
 
 ///////////////////////////////////////////////////////////////////////////
@@ -207,6 +215,14 @@ function onMouseLeaveCell(id, cell) {
 
 let selectedCell = null;
 function onMouseClickCell(id, cell, evt) {
+  if (modes.positions.edit) {
+    let newPos = prompt("New position ?");
+    cellsData.cells[id].position = parseInt(newPos);
+    updatePositions();
+    saveCellsData();
+    return;
+  }
+
   if (modes.lanes.end1) {
     updateLaneEnd(1, id);
     return;
@@ -481,7 +497,7 @@ function generateNeighbours() {
   });
 
   cellsData.computed.neighbours = true;
-  this.saveCellsData();
+  saveCellsData();
   toggleShow("neighbours", true);
   console.log("Neighbours computed");
 }
@@ -582,7 +598,7 @@ function generateAdjacence() {
   });
 
   cellsData.computed.adjacence = true;
-  this.saveCellsData();
+  saveCellsData();
   toggleShow("adjacence", true);
   console.log("Adjacence computed");
 }
@@ -693,7 +709,7 @@ function generateLanes() {
   });
 
   cellsData.computed.lanes = true;
-  this.saveCellsData();
+  saveCellsData();
   toggleShow("lanes", true);
   updateCenters();
   console.log("Lanes computed");
@@ -724,6 +740,109 @@ function updateLaneEnds() {
         $(`lane-${end}`)
       );
     }
+  });
+}
+
+//////////////////////////////////////////////
+//  ____           _ _   _
+// |  _ \ ___  ___(_) |_(_) ___  _ __  ___
+// | |_) / _ \/ __| | __| |/ _ \| '_ \/ __|
+// |  __/ (_) \__ \ | |_| | (_) | | | \__ \
+// |_|   \___/|___/_|\__|_|\___/|_| |_|___/
+//////////////////////////////////////////////
+function generatePositions() {
+  if (!cellsData.computed.adjacence) {
+    alert("You must compute the adjacence first");
+    return false;
+  }
+  if (
+    !cellsData.computed.laneEnds ||
+    !cellsData.computed.laneEnds.end1 ||
+    !cellsData.computed.laneEnds.end2 ||
+    !cellsData.computed.laneEnds.end3
+  ) {
+    alert("You must add the lane endings first");
+    return false;
+  }
+
+  if (
+    (cellsData.computed.positions || false) &&
+    !confirm("Are you sure you want to overwrite existing positions ?")
+  ) {
+    return;
+  }
+
+  const positions = computePositions();
+  cellIds.forEach((cId) => {
+    cellsData.cells[cId].position = positions[cId];
+  });
+
+  cellsData.computed.positions = true;
+  saveCellsData();
+  toggleShow("positions", true);
+  updatePositions();
+  console.log("Positions computed");
+}
+
+function computePositions() {
+  let positions = {};
+
+  let endCell = cellsData.computed.laneEnds.end2;
+  let current = endCell;
+  let pos = 1;
+  while (!positions[current]) {
+    positions[current] = 10 * pos++;
+
+    let forwardCells = computeAdjacentCells(current).concat(
+      cellsData.cells[current].adjacence
+    );
+    forwardCells.forEach((cellId) => {
+      if (cellsData.cells[cellId].lane == 2) {
+        current = cellId;
+      } else {
+        positions[cellId] = 10 * pos - 5;
+      }
+    });
+  }
+
+  return positions;
+}
+
+// function dfsTopologicalSortHelper(cellId, n, visited, positions, excluded) {
+//   visited[cellId] = true;
+//   const neighbours = cellsData.cells[cellId].adjacence;
+//   for (const neighbour of neighbours) {
+//     if (
+//       !visited[neighbour] &&
+//       !excluded.includes(parseInt(neighbour)) &&
+//       (cellsData.cells[cellId].lane ?? 0) > 0
+//     ) {
+//       n = dfsTopologicalSortHelper(neighbour, n, visited, positions, excluded);
+//     }
+//   }
+//   positions[cellId] = n;
+//   return n - 1;
+// }
+
+// function computePositions() {
+//   const vertices = cellIds;
+//   const visited = {};
+//   const positions = {};
+//   const excluded = [1, 2, 3].map((i) => cellsData.computed.laneEnds[`end${i}`]);
+//   console.log(excluded);
+//   let n = vertices.length - 1;
+//   for (const v of vertices) {
+//     if (!visited[v]) {
+//       n = dfsTopologicalSortHelper(v, n, visited, positions, excluded);
+//     }
+//   }
+//   return positions;
+// }
+
+function updatePositions() {
+  cellIds.forEach((cellId) => {
+    $(`center-${cellId}`).dataset.position =
+      cellsData.cells[cellId].position ?? 0;
   });
 }
 
