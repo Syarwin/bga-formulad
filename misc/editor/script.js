@@ -80,6 +80,7 @@ obj.onload = () => {
   $("circuit-info").innerHTML = `${BOARD} - ${paths.length} cells`;
   if (cellsData.computed.centers || false) updateCenters();
   if (cellsData.computed.directions || false) updateDirections();
+  if (cellsData.computed.laneEnds || false) updateLaneEnds();
 };
 
 ///////////////////////////////////////////////////////////////////////////
@@ -107,7 +108,7 @@ SECTIONS.forEach((section) => {
   $(`show-${section}`).addEventListener("click", () => toggleShow(section));
   toggleShow(section, modes[section].show);
 
-  ["edit", "swap", "check"].forEach((action) => {
+  ["edit", "swap", "check", "end1", "end2", "end3"].forEach((action) => {
     if (!$(`${action}-${section}`)) return;
 
     modes[section][action] = false;
@@ -206,6 +207,19 @@ function onMouseLeaveCell(id, cell) {
 
 let selectedCell = null;
 function onMouseClickCell(id, cell, evt) {
+  if (modes.lanes.end1) {
+    updateLaneEnd(1, id);
+    return;
+  }
+  if (modes.lanes.end2) {
+    updateLaneEnd(2, id);
+    return;
+  }
+  if (modes.lanes.end3) {
+    updateLaneEnd(3, id);
+    return;
+  }
+
   if (modes.centers.edit) {
     let x = evt.clientX - 1,
       y = evt.clientY - 3;
@@ -309,6 +323,8 @@ function updateCenters() {
       cellsData.cells[cellId].center.x - 2 + "px";
     $(`center-${cellId}`).style.top =
       cellsData.cells[cellId].center.y - 2 + "px";
+
+    $(`center-${cellId}`).dataset.lane = cellsData.cells[cellId].lane ?? 0;
   });
 }
 
@@ -643,6 +659,72 @@ function computeLane(id) {
   }
 
   return visited;
+}
+
+function generateLanes() {
+  if (!cellsData.computed.adjacence) {
+    alert("You must compute the adjacence first");
+    return false;
+  }
+  if (
+    !cellsData.computed.laneEnds ||
+    !cellsData.computed.laneEnds.end1 ||
+    !cellsData.computed.laneEnds.end2 ||
+    !cellsData.computed.laneEnds.end3
+  ) {
+    alert("You must add the lane endings first");
+    return false;
+  }
+
+  if (
+    (cellsData.computed.lanes || false) &&
+    !confirm("Are you sure you want to overwrite existing lanes ?")
+  ) {
+    return;
+  }
+
+  // Compute adjacence
+  [1, 2, 3].forEach((lane) => {
+    let cellId = cellsData.computed.laneEnds[`end${lane}`];
+    let cellIds = computeLane(cellId);
+    cellIds.forEach((cId) => {
+      cellsData.cells[cId].lane = lane;
+    });
+  });
+
+  cellsData.computed.lanes = true;
+  this.saveCellsData();
+  toggleShow("lanes", true);
+  updateCenters();
+  console.log("Lanes computed");
+}
+
+// Lane ends
+function updateLaneEnd(lane, cellId) {
+  if (!cellsData.computed.laneEnds) cellsData.computed.laneEnds = {};
+  cellsData.computed.laneEnds[`end${lane}`] = cellId;
+  saveCellsData();
+  updateLaneEnds();
+}
+
+function updateLaneEnds() {
+  [1, 2, 3].forEach((i) => {
+    let end = `end${i}`;
+    let cellId = cellsData.computed.laneEnds[end] ?? null;
+    if (cellId) {
+      if (!$(`lane-${end}`)) {
+        $(`center-${cellId}`).insertAdjacentHTML(
+          "beforeend",
+          `<div id='lane-${end}' class='lane-end-indicator'>${i}🏁</div>`
+        );
+      }
+
+      $(`center-${cellId}`).insertAdjacentElement(
+        "beforeend",
+        $(`lane-${end}`)
+      );
+    }
+  });
 }
 
 ////////////////////////

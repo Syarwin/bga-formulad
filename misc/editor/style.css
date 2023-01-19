@@ -113,6 +113,19 @@ object {
     background: red;
 }
 
+/* #main-frame.show-lanes .center-indicator[data-lane="1"] {
+    background: orange;
+    border: 2px solid orange;
+}
+#main-frame.show-lanes .center-indicator[data-lane="2"] {
+    background: rgb(212, 59, 212);
+    border: 2px solid rgb(212, 59, 212);
+}
+#main-frame.show-lanes .center-indicator[data-lane="3"] {
+    background: yellow;
+    border: 2px solid yellow;
+} */
+
 .direction-indicator {
     position: absolute;
     width: 20px;
@@ -134,4 +147,36 @@ object {
     position: absolute;
     right: -3px;
     top: -5px;
+}
+
+#main-frame.show-lanes .center-indicator[data-lane="1"] .direction-indicator {
+    background: rgb(243, 111, 24);
+}
+#main-frame.show-lanes .center-indicator[data-lane="2"] .direction-indicator {
+    background: rgb(212, 59, 212);
+}
+#main-frame.show-lanes .center-indicator[data-lane="3"] .direction-indicator {
+    background: yellow;
+}
+#main-frame.show-lanes .center-indicator[data-lane="1"] .direction-indicator::after {
+    border-left-color: rgb(243, 111, 24);
+}
+#main-frame.show-lanes .center-indicator[data-lane="2"] .direction-indicator::after {
+    border-left-color: rgb(212, 59, 212);
+}
+#main-frame.show-lanes .center-indicator[data-lane="3"] .direction-indicator::after {
+    border-left-color: yellow;
+}
+
+.lane-end-indicator {
+    background: white;
+    width: 20px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1px solid black;
+    font-size: 11px;
+    position: absolute;
+    top: -9px;
+    left: -10px;
+    line-height: 18px;
 }
